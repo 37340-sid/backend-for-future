@@ -4,6 +4,7 @@ import { USER } from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/apiresponse.js"
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose"
 
 
 const generateAccessAndRefreshTokens=async(userId) => {
@@ -144,8 +145,8 @@ const loginUser=asyncHandler(async(req,res)=>{
 
 const logoutUser=asyncHandler(async(req,res)=>{
     await USER.findByIdAndUpdate(req.user._id,{
-        $set:{
-            refreshToken:undefined
+        $unset:{
+            refreshToken:1
         }
     },{
         new:true
@@ -162,7 +163,7 @@ const logoutUser=asyncHandler(async(req,res)=>{
 
 const refreshAccessToken=asyncHandler(async(req,res)=>{
     const incomingRefreshToken=req.cookies.refreshToken || req.body.refreshToken
-    if(incomingRefreshToken){
+    if(!incomingRefreshToken){
         throw new APiError(401,"unathorized request")
     }
    try {
@@ -170,7 +171,7 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
          incomingRefreshToken,
          process.env.REFRESH_TOKEN_SECRET
      )
-     const user=await USER.findbyId(decodedToken?._id)
+     const user=await USER.findById(decodedToken?._id)
      if(!user){
          throw new APiError(401,"invalid refresh token")
      }
@@ -203,7 +204,7 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
 
 const changeCurrentPassword=asyncHandler(async(req,res)=>{
     const {oldPassword,newPassword}=req.body
-    const user=await findById(req.user?._id)
+    const user=await USER.findById(req.user?._id)
     const isPasswordCorrect=await user.isPasswordCorrect(oldPassword)
 
     if(!isPasswordCorrect){
@@ -218,7 +219,7 @@ const changeCurrentPassword=asyncHandler(async(req,res)=>{
 const getCurrentUser=asyncHandler(async(req,res)=>{
     return res
     .status(200)
-    .json(200,req.user,"Current user fetched successfully")
+    .json(new ApiResponse(200,req.user,"Current user fetched successfully"))
 })
 
 const updateAccountDetails=asyncHandler(async(req,res)=>{
@@ -323,7 +324,7 @@ const getUserChannelProfile=asyncHandler(async(req,res)=>{
                     $cond:{
                         if:{$in:[req.user?._id,"$subscribers.subscriber"]},
                         then:true,
-                        else:flase
+                        else:false
                     }
                 }
             }
@@ -333,11 +334,11 @@ const getUserChannelProfile=asyncHandler(async(req,res)=>{
                 fullname:1,
                 email:1,
                 isSubscribed:1,
-                subscribersCount,
-                channelsSubscribedToCount,
+                subscribersCount:1,
+                channelsSubscribedToCount:1,
                 username:1,
                 avatar:1,
-                coverImage
+                coverImage:1
             }
         }
     ])
@@ -351,7 +352,7 @@ const getUserChannelProfile=asyncHandler(async(req,res)=>{
 })
 
 const getWatchHistory=asyncHandler(async(req,res)=>{
-    const user=await user.aggregate([
+    const user=await USER.aggregate([
         {
             $match:{
                 _id:new mongoose.Types.ObjectId(req.user._id)
